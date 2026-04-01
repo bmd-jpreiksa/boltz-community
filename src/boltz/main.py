@@ -217,6 +217,8 @@ class BoltzSteeringParams:
     physical_guidance_update: bool = False
     contact_guidance_update: bool = True
     num_gd_steps: int = 20
+    contact_potential_k: float = 1.0
+    distance_potential_k: float = 10.0
 
 
 def _download(url: str, dest: str) -> None:
@@ -1142,6 +1144,24 @@ def _parse_devices(value: str) -> Union[int, List[int]]:
     help="Whether to use potentials for steering.",
 )
 @click.option(
+    "--contact_potential_k",
+    type=float,
+    default=1.0,
+    help=(
+        "Force constant k for contact potential (only used when --use_potentials "
+        "is enabled)."
+    ),
+)
+@click.option(
+    "--distance_potential_k",
+    type=float,
+    default=10.0,
+    help=(
+        "Force constant k for bounded distance constraints (only used when "
+        "--use_potentials is enabled)."
+    ),
+)
+@click.option(
     "--model",
     default="boltz2",
     type=click.Choice(["boltz1", "boltz2"]),
@@ -1240,6 +1260,8 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     api_key_header: Optional[str],
     api_key_value: Optional[str],
     use_potentials: bool,
+    contact_potential_k: float,
+    distance_potential_k: float,
     model: Literal["boltz1", "boltz2"],
     method: Optional[str],
     affinity_mw_correction: Optional[bool],
@@ -1553,6 +1575,8 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         steering_args = BoltzSteeringParams()
         steering_args.fk_steering = use_potentials
         steering_args.physical_guidance_update = use_potentials
+        steering_args.contact_potential_k = contact_potential_k
+        steering_args.distance_potential_k = distance_potential_k
 
         model_cls = Boltz2 if model == "boltz2" else Boltz1
         if model == "boltz2":

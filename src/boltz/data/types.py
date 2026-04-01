@@ -552,6 +552,7 @@ class InferenceOptions:
     contact_constraints: Optional[
         list[tuple[tuple[int, int], tuple[int, int], float, bool]]
     ] = None
+    distance_constraints: Optional[list[tuple[int, int, float, float, bool]]] = None
 
 
 @dataclass(frozen=True)

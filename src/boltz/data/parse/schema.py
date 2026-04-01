@@ -947,6 +947,26 @@ def token_spec_to_ids(
         return chain_to_idx[chain_name], residue_index_or_atom_name - 1
 
 
+def atom_spec_to_ids(atom_spec, atom_idx_map):
+    """Convert [CHAIN, RES, ATOM] atom spec to internal ids."""
+    if not isinstance(atom_spec, (list, tuple)) or len(atom_spec) != 3:
+        msg = f"Atom spec must have format [CHAIN, RES, ATOM], got: {atom_spec}"
+        raise ValueError(msg)
+
+    chain_name, residue_index, atom_name = atom_spec
+    if not isinstance(residue_index, (int, np.integer)) or not isinstance(
+        atom_name, str
+    ):
+        msg = f"Atom spec must have format [CHAIN, RES, ATOM], got: {atom_spec}"
+        raise ValueError(msg)
+
+    try:
+        return atom_idx_map[(chain_name, int(residue_index) - 1, atom_name)]
+    except KeyError as exc:
+        msg = f"Could not resolve atom spec: {atom_spec}"
+        raise ValueError(msg) from exc
+
+
 def parse_boltz_schema(  # noqa: C901, PLR0915, PLR0912
     path: Path,
     schema: dict,
@@ -986,6 +1006,11 @@ def parse_boltz_schema(  # noqa: C901, PLR0915, PLR0912
             token1: [A, 1]
             token2: [B, 1]
             max_distance: 6
+        - distance:
+            atom1: [A, 1, CA]
+            atom2: [B, 1, O]
+            min_distance: 2.5
+            max_distance: 3.5
     templates:
         - cif: path/to/template.cif
     properties:
@@ -1542,6 +1567,7 @@ def parse_boltz_schema(  # noqa: C901, PLR0915, PLR0912
     connections = []
     pocket_constraints = []
     contact_constraints = []
+    distance_constraints = []
     constraints = schema.get("constraints", [])
     for constraint in constraints:
         if "bond" in constraint:
@@ -1549,11 +1575,45 @@ def parse_boltz_schema(  # noqa: C901, PLR0915, PLR0912
                 msg = f"Bond constraint was not properly specified"
                 raise ValueError(msg)
 
-            c1, r1, a1 = tuple(constraint["bond"]["atom1"])
-            c2, r2, a2 = tuple(constraint["bond"]["atom2"])
-            c1, r1, a1 = atom_idx_map[(c1, r1 - 1, a1)]  # 1-indexed
-            c2, r2, a2 = atom_idx_map[(c2, r2 - 1, a2)]  # 1-indexed
+            c1, r1, a1 = atom_spec_to_ids(constraint["bond"]["atom1"], atom_idx_map)
+            c2, r2, a2 = atom_spec_to_ids(constraint["bond"]["atom2"], atom_idx_map)
             connections.append((c1, c2, r1, r2, a1, a2))
+
+            has_bounded_distance = (
+                "min_distance" in constraint["bond"]
+                or "max_distance" in constraint["bond"]
+            )
+            if has_bounded_distance:
+                if not boltz_2:
+                    msg = (
+                        "Bond min_distance/max_distance constraints are only "
+                        "supported in Boltz-2."
+                    )
+                    raise ValueError(msg)
+
+                if (
+                    "min_distance" not in constraint["bond"]
+                    or "max_distance" not in constraint["bond"]
+                ):
+                    msg = (
+                        "Bond constraints with bounded distances must define both "
+                        "min_distance and max_distance."
+                    )
+                    raise ValueError(msg)
+
+                min_distance = float(constraint["bond"]["min_distance"])
+                max_distance = float(constraint["bond"]["max_distance"])
+                if min_distance > max_distance:
+                    msg = (
+                        "Bond constraint has min_distance greater than max_distance: "
+                        f"{min_distance} > {max_distance}"
+                    )
+                    raise ValueError(msg)
+
+                force = bool(constraint["bond"].get("force", True))
+                distance_constraints.append(
+                    (a1, a2, min_distance, max_distance, force)
+                )
         elif "pocket" in constraint:
             if (
                 "binder" not in constraint["pocket"]
@@ -1622,6 +1682,47 @@ def parse_boltz_schema(  # noqa: C901, PLR0915, PLR0912
             force = constraint["contact"].get("force", False)
 
             contact_constraints.append((token1, token2, max_distance, force))
+        elif "distance" in constraint:
+            if (
+                "atom1" not in constraint["distance"]
+                or "atom2" not in constraint["distance"]
+            ):
+                msg = "Distance constraint was not properly specified"
+                raise ValueError(msg)
+
+            if not boltz_2:
+                msg = "Distance constraint is not supported in Boltz-1!"
+                raise ValueError(msg)
+
+            if (
+                "min_distance" not in constraint["distance"]
+                or "max_distance" not in constraint["distance"]
+            ):
+                msg = (
+                    "Distance constraint must define both min_distance and "
+                    "max_distance."
+                )
+                raise ValueError(msg)
+
+            _, _, atom1 = atom_spec_to_ids(
+                constraint["distance"]["atom1"], atom_idx_map
+            )
+            _, _, atom2 = atom_spec_to_ids(
+                constraint["distance"]["atom2"], atom_idx_map
+            )
+            min_distance = float(constraint["distance"]["min_distance"])
+            max_distance = float(constraint["distance"]["max_distance"])
+            if min_distance > max_distance:
+                msg = (
+                    "Distance constraint has min_distance greater than max_distance: "
+                    f"{min_distance} > {max_distance}"
+                )
+                raise ValueError(msg)
+            force = bool(constraint["distance"].get("force", True))
+
+            distance_constraints.append(
+                (atom1, atom2, min_distance, max_distance, force)
+            )
         else:
             msg = f"Invalid constraint: {constraint}"
             raise ValueError(msg)
@@ -1834,7 +1935,9 @@ def parse_boltz_schema(  # noqa: C901, PLR0915, PLR0912
         chain_infos.append(chain_info)
 
     options = InferenceOptions(
-        pocket_constraints=pocket_constraints, contact_constraints=contact_constraints
+        pocket_constraints=pocket_constraints,
+        contact_constraints=contact_constraints,
+        distance_constraints=distance_constraints,
     )
     record = Record(
         id=name,
