@@ -218,6 +218,7 @@ class BoltzSteeringParams:
     contact_guidance_update: bool = True
     num_gd_steps: int = 20
     contact_potential_k: float = 1.0
+    bond_t_potential_k: float = 10.0
     distance_potential_k: float = 10.0
     hard_distance_constraints: bool = False
     hard_distance_constraint_iters: int = 1
@@ -1164,6 +1165,15 @@ def _parse_devices(value: str) -> Union[int, List[int]]:
     ),
 )
 @click.option(
+    "--bond_t_potential_k",
+    type=float,
+    default=10.0,
+    help=(
+        "Force constant k for bond_t window constraints (only used when "
+        "--use_potentials is enabled)."
+    ),
+)
+@click.option(
     "--hard_distance_constraints",
     is_flag=True,
     help=(
@@ -1281,6 +1291,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     use_potentials: bool,
     contact_potential_k: float,
     distance_potential_k: float,
+    bond_t_potential_k: float,
     hard_distance_constraints: bool,
     hard_distance_constraint_iters: int,
     model: Literal["boltz1", "boltz2"],
@@ -1597,6 +1608,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         steering_args.fk_steering = use_potentials
         steering_args.physical_guidance_update = use_potentials
         steering_args.contact_potential_k = contact_potential_k
+        steering_args.bond_t_potential_k = bond_t_potential_k
         steering_args.distance_potential_k = distance_potential_k
         steering_args.hard_distance_constraints = hard_distance_constraints
         steering_args.hard_distance_constraint_iters = hard_distance_constraint_iters

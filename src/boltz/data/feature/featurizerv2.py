@@ -2302,6 +2302,33 @@ def process_distance_feature_constraints(
     }
 
 
+def process_bond_t_feature_constraints(
+    inference_bond_t_constraints: list[tuple[int, int, float, float, bool]],
+):
+    pair_index, lower_bounds, upper_bounds = [], [], []
+    for atom1, atom2, min_distance, max_distance, force in inference_bond_t_constraints:
+        if not force:
+            continue
+        pair_index.append([atom1, atom2])
+        lower_bounds.append(min_distance)
+        upper_bounds.append(max_distance)
+
+    if len(pair_index) > 0:
+        pair_index = torch.tensor(pair_index, dtype=torch.long).T
+        lower_bounds = torch.tensor(lower_bounds, dtype=torch.float32)
+        upper_bounds = torch.tensor(upper_bounds, dtype=torch.float32)
+    else:
+        pair_index = torch.empty((2, 0), dtype=torch.long)
+        lower_bounds = torch.empty((0,), dtype=torch.float32)
+        upper_bounds = torch.empty((0,), dtype=torch.float32)
+
+    return {
+        "bond_t_pair_index": pair_index,
+        "bond_t_lower_bounds": lower_bounds,
+        "bond_t_upper_bounds": upper_bounds,
+    }
+
+
 class Boltz2Featurizer:
     """Boltz2 featurizer."""
 
@@ -2349,6 +2376,9 @@ class Boltz2Featurizer:
             list[tuple[tuple[int, int], tuple[int, int], float]]
         ] = None,
         inference_distance_constraints: Optional[
+            list[tuple[int, int, float, float, bool]]
+        ] = None,
+        inference_bond_t_constraints: Optional[
             list[tuple[int, int, float, float, bool]]
         ] = None,
         compute_affinity: bool = False,
@@ -2482,6 +2512,7 @@ class Boltz2Featurizer:
         chain_constraint_features = {}
         contact_constraint_features = {}
         distance_constraint_features = {}
+        bond_t_constraint_features = {}
         if compute_constraint_features:
             residue_constraint_features = process_residue_constraint_features(data)
             chain_constraint_features = process_chain_feature_constraints(data)
@@ -2492,6 +2523,9 @@ class Boltz2Featurizer:
             )
             distance_constraint_features = process_distance_feature_constraints(
                 inference_distance_constraints if inference_distance_constraints else []
+            )
+            bond_t_constraint_features = process_bond_t_feature_constraints(
+                inference_bond_t_constraints if inference_bond_t_constraints else []
             )
 
         return {
@@ -2506,5 +2540,6 @@ class Boltz2Featurizer:
             **chain_constraint_features,
             **contact_constraint_features,
             **distance_constraint_features,
+            **bond_t_constraint_features,
             **ligand_to_mw,
         }

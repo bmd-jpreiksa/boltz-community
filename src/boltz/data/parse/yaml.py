@@ -45,6 +45,11 @@ def parse_yaml(
             atom2: [B, 1, O]
             min_distance: 2.5
             max_distance: 3.5
+        - bond_t:
+            atom1: [A, 1, CA]
+            atom2: [B, 1, O]
+            min_distance: 2.0
+            max_distance: 3.5
     templates:
         - path: /path/to/template.pdb
           ids: [A] # optional, specify which chains to template

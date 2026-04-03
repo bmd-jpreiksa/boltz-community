@@ -676,6 +676,15 @@ class DistanceBoundsPotential(FlatBottomPotential, DistancePotential):
         return index, (k, lower_bounds, upper_bounds), None, None, None
 
 
+class BondTBoundsPotential(FlatBottomPotential, DistancePotential):
+    def compute_args(self, feats, parameters):
+        index = feats["bond_t_pair_index"][0]
+        lower_bounds = feats["bond_t_lower_bounds"][0].clone()
+        upper_bounds = feats["bond_t_upper_bounds"][0].clone()
+        k = torch.full_like(lower_bounds, float(parameters.get("k", 1.0)))
+        return index, (k, lower_bounds, upper_bounds), None, None, None
+
+
 def get_potentials(steering_args, boltz2=False):
     potentials = []
     if steering_args["fk_steering"] or steering_args["physical_guidance_update"]:
@@ -766,6 +775,20 @@ def get_potentials(steering_args, boltz2=False):
     ):
         potentials.extend(
             [
+                BondTBoundsPotential(
+                    parameters={
+                        "guidance_interval": 4,
+                        "guidance_weight": (
+                            PiecewiseStepFunction(
+                                thresholds=[0.25, 0.75], values=[0.0, 0.5, 1.0]
+                            )
+                            if steering_args["contact_guidance_update"]
+                            else 0.0
+                        ),
+                        "resampling_weight": 1.0,
+                        "k": steering_args.get("bond_t_potential_k", 10.0),
+                    }
+                ),
                 DistanceBoundsPotential(
                     parameters={
                         "guidance_interval": 4,

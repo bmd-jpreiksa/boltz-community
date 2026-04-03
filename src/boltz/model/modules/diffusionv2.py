@@ -42,24 +42,45 @@ def project_distance_bounds(
     num_iters: int = 1,
     eps: float = 1e-8,
 ) -> torch.Tensor:
-    """Project constrained atom pairs into [lower, upper] distance bounds."""
+    """Project constrained atom pairs into [lower, upper] distance bounds.
+
+    Applies to both `distance` and `bond_t` window constraints if present.
+    """
+    pairs, lowers, uppers = [], [], []
+
     if (
-        "distance_pair_index" not in feats
-        or "distance_lower_bounds" not in feats
-        or "distance_upper_bounds" not in feats
+        "distance_pair_index" in feats
+        and "distance_lower_bounds" in feats
+        and "distance_upper_bounds" in feats
     ):
+        if feats["distance_pair_index"][0].shape[1] > 0:
+            pairs.append(feats["distance_pair_index"][0])
+            lowers.append(feats["distance_lower_bounds"][0])
+            uppers.append(feats["distance_upper_bounds"][0])
+
+    if (
+        "bond_t_pair_index" in feats
+        and "bond_t_lower_bounds" in feats
+        and "bond_t_upper_bounds" in feats
+    ):
+        if feats["bond_t_pair_index"][0].shape[1] > 0:
+            pairs.append(feats["bond_t_pair_index"][0])
+            lowers.append(feats["bond_t_lower_bounds"][0])
+            uppers.append(feats["bond_t_upper_bounds"][0])
+
+    if len(pairs) == 0:
         return atom_coords
 
-    pair_index = feats["distance_pair_index"][0]
-    if pair_index.shape[1] == 0:
-        return atom_coords
+    pair_index = torch.cat(pairs, dim=1)
+    lower_all = torch.cat(lowers)
+    upper_all = torch.cat(uppers)
 
     i_idx = pair_index[0].to(device=atom_coords.device, dtype=torch.long)
     j_idx = pair_index[1].to(device=atom_coords.device, dtype=torch.long)
-    lower = feats["distance_lower_bounds"][0].to(
+    lower = lower_all.to(
         device=atom_coords.device, dtype=atom_coords.dtype
     )
-    upper = feats["distance_upper_bounds"][0].to(
+    upper = upper_all.to(
         device=atom_coords.device, dtype=atom_coords.dtype
     )
 
