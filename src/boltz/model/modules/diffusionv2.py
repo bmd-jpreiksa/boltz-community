@@ -448,6 +448,15 @@ class AtomDiffusion(Module):
                     )
                     atom_coords_denoised[sample_ids_chunk] = atom_coords_denoised_chunk
 
+                # Enforce hard distance windows on x0 prediction so resampling/guidance
+                # operate on the constrained geometry (closer to covalent-style steering).
+                if steering_args.get("hard_distance_constraints", False):
+                    atom_coords_denoised = project_distance_bounds(
+                        atom_coords=atom_coords_denoised,
+                        feats=network_condition_kwargs["feats"],
+                        num_iters=steering_args.get("hard_distance_constraint_iters", 1),
+                    )
+
                 if steering_args["fk_steering"] and (
                     (
                         step_idx % steering_args["fk_resampling_interval"] == 0
@@ -517,6 +526,14 @@ class AtomDiffusion(Module):
                                 )
                         guidance_update -= energy_gradient
                     atom_coords_denoised += guidance_update
+                    if steering_args.get("hard_distance_constraints", False):
+                        atom_coords_denoised = project_distance_bounds(
+                            atom_coords=atom_coords_denoised,
+                            feats=network_condition_kwargs["feats"],
+                            num_iters=steering_args.get(
+                                "hard_distance_constraint_iters", 1
+                            ),
+                        )
                     scaled_guidance_update = (
                         guidance_update
                         * -1
