@@ -2133,22 +2133,40 @@ def process_residue_constraint_features(data: Tokenized) -> dict[str, Tensor]:
     }
 
 
-def process_chain_feature_constraints(data: Tokenized) -> dict[str, Tensor]:
+def process_chain_feature_constraints(
+    data: Tokenized,
+    inference_bond_t_constraints: Optional[
+        list[tuple[int, int, float, float, bool]]
+    ] = None,
+) -> dict[str, Tensor]:
     structure = data.structure
+    bond_t_pair_keys = set()
+    if inference_bond_t_constraints is not None:
+        for atom1, atom2, _, _, force in inference_bond_t_constraints:
+            if force:
+                bond_t_pair_keys.add(tuple(sorted((int(atom1), int(atom2)))))
+
     if structure.bonds.shape[0] > 0:
         connected_chain_index, connected_atom_index = [], []
         for connection in structure.bonds:
             if connection["chain_1"] == connection["chain_2"]:
                 continue
             connected_chain_index.append([connection["chain_1"], connection["chain_2"]])
-            connected_atom_index.append([connection["atom_1"], connection["atom_2"]])
+            pair_key = tuple(
+                sorted((int(connection["atom_1"]), int(connection["atom_2"])))
+            )
+            if pair_key not in bond_t_pair_keys:
+                connected_atom_index.append([connection["atom_1"], connection["atom_2"]])
         if len(connected_chain_index) > 0:
             connected_chain_index = torch.tensor(
                 connected_chain_index, dtype=torch.long
             ).T
-            connected_atom_index = torch.tensor(
-                connected_atom_index, dtype=torch.long
-            ).T
+            if len(connected_atom_index) > 0:
+                connected_atom_index = torch.tensor(
+                    connected_atom_index, dtype=torch.long
+                ).T
+            else:
+                connected_atom_index = torch.empty((2, 0), dtype=torch.long)
         else:
             connected_chain_index = torch.empty((2, 0), dtype=torch.long)
             connected_atom_index = torch.empty((2, 0), dtype=torch.long)
@@ -2515,7 +2533,12 @@ class Boltz2Featurizer:
         bond_t_constraint_features = {}
         if compute_constraint_features:
             residue_constraint_features = process_residue_constraint_features(data)
-            chain_constraint_features = process_chain_feature_constraints(data)
+            chain_constraint_features = process_chain_feature_constraints(
+                data,
+                inference_bond_t_constraints=inference_bond_t_constraints
+                if inference_bond_t_constraints
+                else [],
+            )
             contact_constraint_features = process_contact_feature_constraints(
                 data=data,
                 inference_pocket_constraints=inference_pocket_constraints if inference_pocket_constraints else [],
