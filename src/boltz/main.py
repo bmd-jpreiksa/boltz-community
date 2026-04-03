@@ -219,6 +219,8 @@ class BoltzSteeringParams:
     num_gd_steps: int = 20
     contact_potential_k: float = 1.0
     distance_potential_k: float = 10.0
+    hard_distance_constraints: bool = False
+    hard_distance_constraint_iters: int = 1
 
 
 def _download(url: str, dest: str) -> None:
@@ -1162,6 +1164,23 @@ def _parse_devices(value: str) -> Union[int, List[int]]:
     ),
 )
 @click.option(
+    "--hard_distance_constraints",
+    is_flag=True,
+    help=(
+        "Enable hard projection of distance constraints during denoising "
+        "(Boltz-2 only)."
+    ),
+)
+@click.option(
+    "--hard_distance_constraint_iters",
+    type=int,
+    default=1,
+    help=(
+        "Number of projection sweeps per denoising step when "
+        "--hard_distance_constraints is enabled."
+    ),
+)
+@click.option(
     "--model",
     default="boltz2",
     type=click.Choice(["boltz1", "boltz2"]),
@@ -1262,6 +1281,8 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     use_potentials: bool,
     contact_potential_k: float,
     distance_potential_k: float,
+    hard_distance_constraints: bool,
+    hard_distance_constraint_iters: int,
     model: Literal["boltz1", "boltz2"],
     method: Optional[str],
     affinity_mw_correction: Optional[bool],
@@ -1577,6 +1598,8 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         steering_args.physical_guidance_update = use_potentials
         steering_args.contact_potential_k = contact_potential_k
         steering_args.distance_potential_k = distance_potential_k
+        steering_args.hard_distance_constraints = hard_distance_constraints
+        steering_args.hard_distance_constraint_iters = hard_distance_constraint_iters
 
         model_cls = Boltz2 if model == "boltz2" else Boltz1
         if model == "boltz2":

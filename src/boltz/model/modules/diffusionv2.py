@@ -36,6 +36,57 @@ from boltz.model.modules.utils import (
 from boltz.model.potentials.potentials import get_potentials
 
 
+def project_distance_bounds(
+    atom_coords: torch.Tensor,
+    feats: dict,
+    num_iters: int = 1,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Project constrained atom pairs into [lower, upper] distance bounds."""
+    if (
+        "distance_pair_index" not in feats
+        or "distance_lower_bounds" not in feats
+        or "distance_upper_bounds" not in feats
+    ):
+        return atom_coords
+
+    pair_index = feats["distance_pair_index"][0]
+    if pair_index.shape[1] == 0:
+        return atom_coords
+
+    i_idx = pair_index[0].to(device=atom_coords.device, dtype=torch.long)
+    j_idx = pair_index[1].to(device=atom_coords.device, dtype=torch.long)
+    lower = feats["distance_lower_bounds"][0].to(
+        device=atom_coords.device, dtype=atom_coords.dtype
+    )
+    upper = feats["distance_upper_bounds"][0].to(
+        device=atom_coords.device, dtype=atom_coords.dtype
+    )
+
+    coords = atom_coords
+    for _ in range(max(1, int(num_iters))):
+        xi = coords[:, i_idx, :]
+        xj = coords[:, j_idx, :]
+        vec = xi - xj
+        dist = torch.linalg.norm(vec, dim=-1).clamp_min(eps)
+
+        target = torch.where(dist < lower, lower, dist)
+        target = torch.where(dist > upper, upper, target)
+        delta = target - dist
+
+        direction = vec / dist.unsqueeze(-1)
+        shift = 0.5 * delta.unsqueeze(-1) * direction
+
+        updates = torch.zeros_like(coords)
+        idx_i = i_idx.view(1, -1, 1).expand(coords.shape[0], -1, 3)
+        idx_j = j_idx.view(1, -1, 1).expand(coords.shape[0], -1, 3)
+        updates.scatter_add_(-2, idx_i, shift)
+        updates.scatter_add_(-2, idx_j, -shift)
+        coords = coords + updates
+
+    return coords
+
+
 class DiffusionModule(Module):
     """Diffusion module"""
 
@@ -528,6 +579,12 @@ class AtomDiffusion(Module):
             )
 
             atom_coords = atom_coords_next
+            if steering_args.get("hard_distance_constraints", False):
+                atom_coords = project_distance_bounds(
+                    atom_coords=atom_coords,
+                    feats=network_condition_kwargs["feats"],
+                    num_iters=steering_args.get("hard_distance_constraint_iters", 1),
+                )
 
         return dict(sample_atom_coords=atom_coords, diff_token_repr=token_repr)
 
