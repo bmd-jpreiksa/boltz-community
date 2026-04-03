@@ -218,7 +218,7 @@ class BoltzSteeringParams:
     contact_guidance_update: bool = True
     num_gd_steps: int = 20
     contact_potential_k: float = 1.0
-    bond_t_potential_k: float = 10.0
+    bond_t_potential_k: float = 1.0
     distance_potential_k: float = 10.0
     hard_distance_constraints: bool = False
     hard_distance_constraint_iters: int = 1
@@ -1167,7 +1167,7 @@ def _parse_devices(value: str) -> Union[int, List[int]]:
 @click.option(
     "--bond_t_potential_k",
     type=float,
-    default=10.0,
+    default=1.0,
     help=(
         "Force constant k for bond_t window constraints (only used when "
         "--use_potentials is enabled)."

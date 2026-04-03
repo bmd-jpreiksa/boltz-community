@@ -726,6 +726,16 @@ def get_potentials(steering_args, boltz2=False):
                         "buffer": 2.0,
                     }
                 ),
+                BondTBoundsPotential(
+                    parameters={
+                        "guidance_interval": 1,
+                        "guidance_weight": 0.15
+                        if steering_args["physical_guidance_update"]
+                        else 0.0,
+                        "resampling_weight": 1.0,
+                        "k": steering_args.get("bond_t_potential_k", 1.0),
+                    }
+                ),
                 PoseBustersPotential(
                     parameters={
                         "guidance_interval": 1,
@@ -775,20 +785,6 @@ def get_potentials(steering_args, boltz2=False):
     ):
         potentials.extend(
             [
-                BondTBoundsPotential(
-                    parameters={
-                        "guidance_interval": 4,
-                        "guidance_weight": (
-                            PiecewiseStepFunction(
-                                thresholds=[0.25, 0.75], values=[0.0, 0.5, 1.0]
-                            )
-                            if steering_args["contact_guidance_update"]
-                            else 0.0
-                        ),
-                        "resampling_weight": 1.0,
-                        "k": steering_args.get("bond_t_potential_k", 10.0),
-                    }
-                ),
                 DistanceBoundsPotential(
                     parameters={
                         "guidance_interval": 4,
