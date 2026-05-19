@@ -220,6 +220,7 @@ class BoltzSteeringParams:
     contact_potential_k: float = 1.0
     bond_t_potential_k: float = 1.0
     distance_potential_k: float = 10.0
+    chiral_guidance_weight: float = 0.1
     hard_distance_constraints: bool = False
     hard_distance_constraint_iters: int = 1
 
@@ -1174,6 +1175,15 @@ def _parse_devices(value: str) -> Union[int, List[int]]:
     ),
 )
 @click.option(
+    "--guidance_weight",
+    type=float,
+    default=0.1,
+    help=(
+        "Guidance weight for chiral atom potential (only used when "
+        "--use_potentials is enabled)."
+    ),
+)
+@click.option(
     "--hard_distance_constraints",
     is_flag=True,
     help=(
@@ -1292,6 +1302,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
     contact_potential_k: float,
     distance_potential_k: float,
     bond_t_potential_k: float,
+    guidance_weight: float,
     hard_distance_constraints: bool,
     hard_distance_constraint_iters: int,
     model: Literal["boltz1", "boltz2"],
@@ -1609,6 +1620,7 @@ def predict(  # noqa: C901, PLR0915, PLR0912
         steering_args.physical_guidance_update = use_potentials
         steering_args.contact_potential_k = contact_potential_k
         steering_args.bond_t_potential_k = bond_t_potential_k
+        steering_args.chiral_guidance_weight = guidance_weight
         steering_args.distance_potential_k = distance_potential_k
         steering_args.hard_distance_constraints = hard_distance_constraints
         steering_args.hard_distance_constraint_iters = hard_distance_constraint_iters

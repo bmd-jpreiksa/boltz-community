@@ -751,7 +751,9 @@ def get_potentials(steering_args, boltz2=False):
                 ChiralAtomPotential(
                     parameters={
                         "guidance_interval": 1,
-                        "guidance_weight": 0.1
+                        "guidance_weight": steering_args.get(
+                            "chiral_guidance_weight", 0.1
+                        )
                         if steering_args["physical_guidance_update"]
                         else 0.0,
                         "resampling_weight": 1.0,
